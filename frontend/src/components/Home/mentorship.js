@@ -51,7 +51,13 @@ const courses = [
                     style={{ backgroundColor: '#64a0cc' }}
                   >
                     <div className="course-img">
-                      <Image src={course.image} className="icon" alt={`${course.title} Image`} width={'auto'} height={'auto'} />&
+                     <Image
+                 src={course.image}
+                  className="icon"
+                   alt={`${course.title} Image`}
+                    width={500}
+                   height={350}
+                    />
                     </div>
                     <div className="course-content">
                       <h2>{course.title}</h2>

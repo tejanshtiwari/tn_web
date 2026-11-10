@@ -1,50 +1,345 @@
+
 .leaderboard {
-  padding: 2rem;
-  text-align: center;
+  min-height: 100vh;
+  padding: 45px clamp(18px, 5vw, 65px) 65px;
+  background: #f5f7fa;
+  color: #172b43;
+  font-family: Arial, sans-serif;
+  text-align: left;
+  box-sizing: border-box;
 }
 
-.leaderboard h1 {
-  margin-bottom: 1rem;
-  font-size: 2rem;
-  color: #2c3e50;
+.leaderboard * {
+  box-sizing: border-box;
+}
+
+.leaderboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.leaderboard-eyebrow {
+  margin: 0 0 8px;
+  color: #296c9e;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.leaderboard-header h1 {
+  margin: 0;
+  color: #172b43;
+  font-size: clamp(28px, 4vw, 38px);
+}
+
+.leaderboard-header > div > p:last-child {
+  margin: 10px 0 0;
+  color: #748195;
+  font-size: 15px;
+}
+
+.leaderboard .leaderboard-refresh,
+.leaderboard-state button {
+  flex-shrink: 0;
+  padding: 11px 17px;
+  border: 1px solid #dce4ed;
+  border-radius: 8px;
+  background: white;
+  color: #296c9e;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.leaderboard .leaderboard-refresh:hover,
+.leaderboard-state button:hover {
+  background: #eaf2f9;
+}
+
+.leaderboard-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 38px;
+}
+
+.leaderboard-summary > div {
+  min-width: 0;
+  padding: 21px 23px;
+  background: white;
+  border: 1px solid #e4eaf1;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(23, 43, 67, 0.035);
+}
+
+.leaderboard-summary span {
+  display: block;
+  color: #78869a;
+  font-size: 13px;
+}
+
+.leaderboard-summary strong {
+  display: block;
+  margin-top: 9px;
+  color: #172b43;
+  font-size: 26px;
+  overflow-wrap: anywhere;
+}
+
+.leaderboard-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.leaderboard-section-title h2 {
+  margin: 0;
+  color: #172b43;
+  font-size: 23px;
+}
+
+.leaderboard-section-title > span {
+  color: #78869a;
+  font-size: 13px;
+}
+
+.leaderboard-top {
+  margin-bottom: 42px;
+}
+
+.top-performers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 17px;
+  align-items: stretch;
+}
+
+.top-performer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 25px 15px;
+  background: white;
+  border: 1px solid #e4eaf1;
+  border-radius: 13px;
+  box-shadow: 0 4px 14px rgba(23, 43, 67, 0.035);
+  text-align: center;
+  animation: leaderboard-rise 0.55s ease both;
+}
+
+.top-performer.rank-1 {
+  border-top: 4px solid #d9aa43;
+}
+
+.top-performer.rank-2 {
+  border-top: 4px solid #9ba9b8;
+  animation-delay: 0.1s;
+}
+
+.top-performer.rank-3 {
+  border-top: 4px solid #bd875d;
+  animation-delay: 0.2s;
+}
+
+.top-rank {
+  font-size: 30px;
+}
+
+.top-avatar {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 13px 0;
+  border-radius: 50%;
+  background: #eaf2f9;
+  color: #296c9e;
+  font-size: 25px;
+  font-weight: 700;
+}
+
+.top-performer h3 {
+  margin: 0 0 8px;
+  color: #172b43;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.top-performer > strong {
+  color: #296c9e;
+  font-size: 16px;
+}
+
+.top-streak {
+  margin-top: 9px;
+  color: #78869a;
+  font-size: 12px;
+}
+
+.leaderboard-rankings {
+  padding: 25px;
+  background: white;
+  border: 1px solid #e4eaf1;
+  border-radius: 13px;
+  box-shadow: 0 4px 14px rgba(23, 43, 67, 0.035);
 }
 
 .responsive-table-wrapper {
+  width: 100%;
   overflow-x: auto;
+  border: 1px solid #e9edf2;
+  border-radius: 9px;
 }
 
 .responsive-table {
   width: 100%;
+  min-width: 540px;
   border-collapse: collapse;
-  margin: auto;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.responsive-table th,
-.responsive-table td {
-  padding: 0.75rem 1rem;
-  border: 1px solid #ddd;
-  text-align: center;
-  font-size: 1rem;
+  text-align: left;
 }
 
 .responsive-table th {
-  background-color: #63a6e9;
-  color: white;
-  font-weight: bold;
+  padding: 15px 17px;
+  background: #f2f6fa;
+  color: #607187;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.responsive-table tr:nth-child(even) {
-  background-color: #f9f9f9;
+.responsive-table td {
+  padding: 15px 17px;
+  border-top: 1px solid #edf0f4;
+  color: #526174;
+  font-size: 14px;
 }
 
-/* Animation */
-@keyframes fadeInUp {
+.responsive-table tbody tr {
+  transition: background 0.2s ease;
+  animation: leaderboard-rise 0.45s ease both;
+}
+
+.responsive-table tbody tr:hover {
+  background: #f7fafd;
+}
+
+.responsive-table tbody tr:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.responsive-table tbody tr:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+.responsive-table tbody tr:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.responsive-table tbody tr:nth-child(5) {
+  animation-delay: 0.16s;
+}
+
+.rank-number {
+  display: inline-block;
+  min-width: 37px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: #edf3f8;
+  color: #296c9e;
+  font-weight: 700;
+  text-align: center;
+}
+
+.table-mentee {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 150px;
+}
+
+.table-avatar {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #eaf2f9;
+  color: #296c9e;
+  font-weight: 700;
+}
+
+.table-mentee strong {
+  color: #263b52;
+  overflow-wrap: anywhere;
+}
+
+.score-value {
+  color: #172b43;
+  font-size: 16px;
+}
+
+.score-unit {
+  color: #8793a3;
+  font-size: 12px;
+}
+
+.leaderboard-empty,
+.leaderboard-state {
+  padding: 55px 20px;
+  color: #78869a;
+  text-align: center;
+}
+
+.leaderboard-empty h3,
+.leaderboard-state h2 {
+  margin: 0 0 8px;
+  color: #263b52;
+}
+
+.leaderboard-empty p,
+.leaderboard-state p {
+  margin: 0 0 16px;
+  font-size: 14px;
+}
+
+.leaderboard-state {
+  min-height: 65vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.leaderboard-spinner {
+  width: 35px;
+  height: 35px;
+  margin-bottom: 15px;
+  border: 3px solid #e2e9f1;
+  border-top-color: #296c9e;
+  border-radius: 50%;
+  animation: leaderboard-spin 0.8s linear infinite;
+}
+
+@keyframes leaderboard-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes leaderboard-rise {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -52,21 +347,65 @@
   }
 }
 
-.responsive-table tr {
-  opacity: 0;
-  animation: fadeInUp 0.6s ease forwards;
+@media (max-width: 750px) {
+  .top-performers {
+    grid-template-columns: 1fr;
+  }
+
+  .top-performer {
+    padding: 20px;
+  }
+
+  .leaderboard-summary {
+    gap: 10px;
+  }
+
+  .leaderboard-summary > div {
+    padding: 16px;
+  }
+
+  .leaderboard-summary strong {
+    font-size: 22px;
+  }
 }
 
-/* Add staggered delays for each row dynamically */
-.responsive-table tr:nth-child(1) { animation-delay: 0.1s; }
-.responsive-table tr:nth-child(2) { animation-delay: 0.2s; }
-.responsive-table tr:nth-child(3) { animation-delay: 0.3s; }
-.responsive-table tr:nth-child(4) { animation-delay: 0.4s; }
-.responsive-table tr:nth-child(5) { animation-delay: 0.5s; }
-.responsive-table tr:nth-child(6) { animation-delay: 0.6s; }
-.responsive-table tr:nth-child(7) { animation-delay: 0.7s; }
-.responsive-table tr:nth-child(8) { animation-delay: 0.8s; }
-.responsive-table tr:nth-child(9) { animation-delay: 0.9s; }
-.responsive-table tr:nth-child(10) { animation-delay: 1s; }
+@media (max-width: 520px) {
+  .leaderboard {
+    padding: 28px 15px 40px;
+  }
 
-/* If table has more rows, they will continue the stagger effect */
+  .leaderboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .leaderboard-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .leaderboard-summary > div {
+    padding: 15px 18px;
+  }
+
+  .leaderboard-summary strong {
+    margin-top: 5px;
+  }
+
+  .leaderboard-rankings {
+    padding: 15px;
+  }
+
+  .leaderboard-section-title h2 {
+    font-size: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leaderboard *,
+  .leaderboard *::before,
+  .leaderboard *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

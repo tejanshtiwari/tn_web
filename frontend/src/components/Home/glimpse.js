@@ -12,7 +12,13 @@ export default function Glimpse (){
        <div id="Glimpse">
         <h2>Glimpse</h2>
         <hr className="star-light"></hr>
-        <Image src={Glimpses} alt="Glimpse" width={'auto'} height={'auto'} />
+       <Image
+  src={Glimpses}
+  alt="TechNeeds community events and activities"
+  className="glimpse-image"
+  width={1200}
+  height={650}
+/>
         </div>
     </div>
   );

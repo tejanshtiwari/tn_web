@@ -80,10 +80,10 @@ export default function About () {
                 <h2>What We Offer :</h2>
                 <ul className="about-list">
                   <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&nbsp;In-Depth Insights</li>
-                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&&nbsp;Educational Content</li>
-                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&&nbsp;Community Engagement</li>
-                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&&nbsp;Hackathons</li>
-                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&&nbsp;Speaker Sessions</li>
+                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&nbsp;Educational Content</li>
+                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&nbsp;Community Engagement</li>
+                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&nbsp;Hackathons</li>
+                  <li className='about-li'><Image src={rocket} alt="rocket" width={'auto'} height={'auto'} />&nbsp;Speaker Sessions</li>
                 </ul>
               </div>
             </div>

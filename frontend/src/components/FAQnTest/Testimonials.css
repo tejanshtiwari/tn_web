@@ -1,77 +1,153 @@
-#Test {
-  background: linear-gradient(to right, #b3d4e6, #FFFFFF, #b3d4e6) !important;
-  margin: auto;
-  overflow: hidden; 
+
+.testimonials-section {
   width: 100%;
+  padding: 75px 7%;
+  background: #ffffff;
+  box-sizing: border-box;
 }
 
-#Test h2{
-  display: flex;
-  justify-content: center; 
-  align-items: center;
-  font-size: 2rem;
+.testimonials-heading {
+  max-width: 750px;
+  margin: 0 auto 45px;
+  text-align: center;
+}
+
+.testimonials-eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: #2877a9;
+  font-size: 0.78rem;
   font-weight: 700;
-  margin: 5px;
-  margin-bottom: 25px;
+  letter-spacing: 2px;
+}
+
+.testimonials-heading h2 {
+  margin: 0;
+  color: #142b43;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.testimonials-heading p {
+  margin: 14px 0 0;
+  color: #68788a;
+  font-size: 1rem;
+  line-height: 1.7;
 }
 
 .testimonials {
+  width: 100%;
+  max-width: 1250px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.testimonial-card {
+  min-width: 0;
+  padding: 26px;
+  background: #ffffff;
+  border: 1px solid #e5ebf1;
+  border-radius: 13px;
+  box-shadow: 0 5px 18px rgba(25, 55, 80, 0.045);
+  transition: transform 0.25s ease, box-shadow 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.testimonial-card:hover {
+  transform: translateY(-4px);
+  border-color: #c5dbea;
+  box-shadow: 0 12px 25px rgba(25, 55, 80, 0.09);
+}
+
+.testimonial-top {
   display: flex;
-  gap: 20px;
   align-items: center;
-  width: calc(300px * 8 + 140px); 
-  animation: scroll-right 45s linear infinite;
-  padding-bottom: 80px;
+  gap: 14px;
 }
 
-.testimonial1, .testimonial2, .testimonial3, .testimonial4, .testimonial5, .testimonial6, .testimonial7, .testimonial8 {
-  background-color: #ffffff;
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  width: 300px; 
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s, box-shadow 0.3s;
-  flex: none;
-  position: relative;
-}
-
-.testimonial1:hover, .testimonial2:hover, .testimonial3:hover, .testimonial4:hover, .testimonial5:hover, .testimonial6:hover, .testimonial7:hover, .testimonial8:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-  border-color: #0459c1;
-  border-width: 2px;
-}
-
-.testimonial-content {
-  position: relative;
-}
-
-.testimonial-header {
+.testimonial-avatar {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 15px;
+  justify-content: center;
+  border-radius: 50%;
+  background: #eaf3f9;
+  color: #216c9d;
+  font-size: 0.95rem;
+  font-weight: 750;
 }
 
-.testimonial-stars {
-  color: #f39c12; 
-  font-size: 1.5em; 
-}
-
-.student-review {
-  margin: 0;
-  color: #333;
-  font-size: 14px;
-  line-height: 1.5;
+.testimonial-person {
+  min-width: 0;
 }
 
 .student-name {
-  font-size: 1.2em;
-  margin-top: 10px;
+  margin: 0;
+  color: #20364c;
+  font-size: 1.02rem;
+  font-weight: 700;
 }
 
-@keyframes scroll-right {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(calc(-300px * 8 - 140px)); } 
+.testimonial-label {
+  display: block;
+  margin-top: 4px;
+  color: #8492a0;
+  font-size: 0.78rem;
+}
+
+.testimonial-stars {
+  margin-top: 19px;
+  color: #e5a52b;
+  font-size: 1rem;
+  letter-spacing: 2px;
+}
+
+.empty-stars {
+  color: #dce2e8;
+}
+
+.student-review {
+  margin: 13px 0 0;
+  color: #637386;
+  font-size: 0.94rem;
+  line-height: 1.8;
+}
+
+@media (max-width: 768px) {
+  .testimonials-section {
+    padding: 60px 6%;
+  }
+
+  .testimonials {
+    gap: 16px;
+  }
+
+  .testimonial-card {
+    padding: 21px;
+  }
+}
+
+@media (max-width: 600px) {
+  .testimonials {
+    grid-template-columns: 1fr;
+  }
+
+  .testimonials-heading {
+    margin-bottom: 32px;
+  }
+
+  .testimonial-card {
+    padding: 23px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .testimonial-card {
+    transition: none;
+  }
 }
