@@ -1,339 +1,775 @@
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+
 const Mentee = require('../models/Mentee');
 const Quiz = require('../models/Quiz');
 const QuizSubmission = require('../models/QuizSubmission');
-const Program = require('../models/Program');
 const Resource = require('../models/Resource');
+
 const { authenticateMentee } = require('../middleware/authMentor');
+
 const router = express.Router();
 
 
-router.post('/login', async (req, res) => {
-  const { enrollmentNumber, password } = req.body;
+// --------------------------------------------------
+// Helper: Check whether mentee is enrolled in program
+// --------------------------------------------------
+
+const isEnrolled = (mentee, programId) => {
+  return mentee.programs.some(
+    id => id.toString() === programId.toString()
+  );
+};
+
+
+// --------------------------------------------------
+// Helper: Validate MongoDB ObjectId
+// --------------------------------------------------
+
+const isValidId = id => mongoose.isValidObjectId(id);
+
+
+// --------------------------------------------------
+// Helper: Validate HTTP/HTTPS URL
+// --------------------------------------------------
+
+const isValidUrl = value => {
   try {
-    const mentee = await Mentee.findOne({ enrollmentNumber });
-    if (!mentee || !(password === mentee.password)) {
-      return res.status(400).json({ error: 'Invalid credentials' });
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+
+// --------------------------------------------------
+// Helper: Update mentee streak
+// --------------------------------------------------
+
+async function updateStreak(mentee) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const lastActive = mentee.lastActiveDate
+    ? mentee.lastActiveDate.toISOString().slice(0, 10)
+    : null;
+
+  if (lastActive === today) {
+    return;
+  }
+
+  const yesterday = new Date(
+    Date.now() - 24 * 60 * 60 * 1000
+  ).toISOString().slice(0, 10);
+
+  mentee.streak = lastActive === yesterday
+    ? (mentee.streak || 0) + 1
+    : 1;
+
+  mentee.lastActiveDate = new Date();
+}
+
+
+// --------------------------------------------------
+// Helper: Recalculate total score
+// --------------------------------------------------
+
+function calculateTotalScore(mentee) {
+  return mentee.completedResources.reduce(
+    (total, entry) => total + (entry.score || 0),
+    0
+  );
+}
+
+
+// --------------------------------------------------
+// Mentee Login
+// POST /api/m/login
+// --------------------------------------------------
+
+router.post('/login', async (req, res) => {
+  try {
+    const { enrollmentNumber, password } = req.body;
+
+    if (!enrollmentNumber?.trim() || !password) {
+      return res.status(400).json({
+        error: 'Enrollment number and password are required'
+      });
     }
-    const token = jwt.sign({ id: mentee._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token });
+
+    if (!process.env.JWT_SECRET) {
+      return res.status(500).json({
+        error: 'Authentication configuration error'
+      });
+    }
+
+    const mentee = await Mentee.findOne({
+      enrollmentNumber: enrollmentNumber.trim()
+    });
+
+    if (
+      !mentee ||
+      !(await bcrypt.compare(password, mentee.password))
+    ) {
+      return res.status(401).json({
+        error: 'Invalid credentials'
+      });
+    }
+
+    const token = jwt.sign(
+      { id: mentee._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({ token });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Mentee login error:', err.message);
+
+    res.status(500).json({
+      error: 'Server error'
+    });
   }
 });
 
-// --- Mentee Dashboard --- //
+
+// --------------------------------------------------
+// Mentee Dashboard
+// GET /api/m/dashboard
+// --------------------------------------------------
+
 router.get('/dashboard', authenticateMentee, async (req, res) => {
   try {
     const mentee = await Mentee.findById(req.mentee._id)
-    .populate({
-      path: 'programs',
-      populate: {
-        path: 'resources',
+      .populate({
+        path: 'programs',
+        populate: {
+          path: 'resources',
+          model: 'Resource'
+        }
+      })
+      .populate({
+        path: 'completedResources.resource',
         model: 'Resource'
-      }
-    })  
-    .populate({
-      path: 'completedResources.resource',
-      model: 'Resource'
-    });
-    // Map completedResources for quick lookup
+      });
+
+    if (!mentee) {
+      return res.status(404).json({
+        error: 'Mentee not found'
+      });
+    }
+
+    // Create a map of completed resources.
     const completedMap = new Map();
-    mentee.completedResources.forEach((item) => {
+
+    mentee.completedResources.forEach(item => {
+      if (!item.resource) return;
+
       completedMap.set(item.resource._id.toString(), {
         score: item.score,
         completedOn: item.completedOn
       });
     });
 
-    let totalScore = 0;
-mentee.completedResources.forEach((item) => {
-  totalScore += item.score || 0;
-});
+    // Add completion information to program resources.
+    const updatedPrograms = mentee.programs
+      .filter(program => program)
+      .map(program => {
+        const updatedResources = program.resources
+          .filter(resource => resource)
+          .map(resource => {
+            const completed = completedMap.get(
+              resource._id.toString()
+            );
 
-    // Add completed status to each resource
-    const updatedPrograms = mentee.programs.map((program) => {
-      const updatedResources = program.resources.map((res) => {
-        const isCompleted = completedMap.has(res._id.toString());
+            return {
+              ...resource.toObject(),
+              completed: Boolean(completed),
+              score: completed ? completed.score : null,
+              completedOn: completed
+                ? completed.completedOn
+                : null
+            };
+          });
+
         return {
-          ...res.toObject(),
-          completed: isCompleted,
-          score: isCompleted ? completedMap.get(res._id.toString()).score : null,
-          completedOn: isCompleted ? completedMap.get(res._id.toString()).completedOn : null
+          ...program.toObject(),
+          resources: updatedResources
         };
       });
-      return {
-        ...program.toObject(),
-        resources: updatedResources
-      };
-    });
-    res.json({
+
+    const totalScore = calculateTotalScore(mentee);
+
+    const rank = await calculateRank(mentee._id);
+
+    res.status(200).json({
       name: mentee.name,
-      programs: mentee.programs,
+      programs: updatedPrograms,
       streak: mentee.streak,
       totalScore,
-      programs: updatedPrograms,
-      rank: await calculateRank(mentee._id), // Implement this helper
-    //   resources: await getResourcesWithStatus(mentee) // Implement this
+      rank
     });
+
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('Dashboard error:', err.message);
+
+    res.status(500).json({
+      error: 'Could not load dashboard'
+    });
   }
 });
 
-// --- Resource Completion --- //
-router.post('/resources/:id/complete', authenticateMentee, async (req, res) => {
-  try {
-    const resource = await Resource.findById(req.params.id);
-    const mentee = req.mentee;
 
-    // Check if resource is unlocked
-    if (resource.isLocked) {
-      return res.status(403).json({ error: 'Resource is locked' });
-    }
+// --------------------------------------------------
+// Complete a Video Resource
+// POST /api/m/resources/:id/complete
+// --------------------------------------------------
 
-    // Calculate score (deduct for late submission)
-    const deadline = resource.deadline;
-    const isLate = deadline && new Date() > deadline;
-    const latePenalty = isLate ? Math.floor((new Date() - deadline) / (1000 * 60 * 60 * 24)) : 0; // 1 point/day
-    const score = Math.max(0, resource.maxScore - latePenalty);
+router.post(
+  '/resources/:id/complete',
+  authenticateMentee,
+  async (req, res) => {
+    try {
+      const resourceId = req.params.id;
+      const mentee = req.mentee;
 
-    // Update mentee's progress
-    const completedResource = {
-      resource: resource._id,
-      score,
-      completedOn: new Date()
-    };
-
-    // Check if resource is already completed
-    const existingCompletion = mentee.completedResources.find(
-      (completed) => completed.resource.toString() === resource._id.toString()
-    );
-
-    if (existingCompletion) {
-      // If already completed, update the score and date
-      existingCompletion.score = score;
-      existingCompletion.completedOn = new Date();
-    } else {
-      // If not completed yet, push new completion entry
-      mentee.completedResources.push(completedResource);
-    }
-
-    // Update streak (if active today)
-    await updateStreak(mentee);
-    await mentee.save();
-
-    res.json({ message: 'Resource marked as completed!', score });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post('/resources/:id/quiz/submit', authenticateMentee, async (req, res) => {
-  try {
-    const resourceId = req.params.id;
-    const mentee = req.mentee;
-    const answers = req.body.answers; // [{ questionId, selectedOptionIndex }, ...]
-
-    const resource = await Resource.findById(resourceId).populate('quiz');
-    if (!resource || resource.type !== 'quiz') {
-      return res.status(400).json({ error: 'Invalid quiz resource' });
-    }
-
-    if (resource.isLocked) {
-      return res.status(403).json({ error: 'Quiz is locked' });
-    }
-
-    const quiz = await Quiz.findOne({resource:resourceId});
-    if (!quiz) {
-      return res.status(404).json({ error: 'Quiz not found' });
-    }
-
-    const now = new Date();
-    if (now < quiz.startTime || now > quiz.endTime) {
-      return res.status(403).json({ error: 'Quiz is not active at this time' });
-    }
-
-    // Prevent resubmission
-    const existing = await QuizSubmission.findOne({ quiz: quiz._id, mentee: mentee._id });
-    if (existing) {
-      return res.status(409).json({ error: 'Quiz already submitted' });
-    }
-
-    // Calculate score
-    let totalScore = 0;
-    for (const question of quiz.questions) {
-      const userAnswer = answers.find(ans => ans.questionId === question._id.toString());
-      if (userAnswer && userAnswer.selectedOptionIndex === question.correctOptionIndex) {
-        totalScore += question.marks || 1;
+      if (!isValidId(resourceId)) {
+        return res.status(400).json({
+          error: 'Invalid resource ID'
+        });
       }
+
+      const resource = await Resource.findById(resourceId);
+
+      if (!resource) {
+        return res.status(404).json({
+          error: 'Resource not found'
+        });
+      }
+
+      if (resource.type !== 'video') {
+        return res.status(400).json({
+          error: 'Only video resources can be completed using this endpoint'
+        });
+      }
+
+      if (resource.isLocked) {
+        return res.status(403).json({
+          error: 'Resource is locked'
+        });
+      }
+
+      if (!isEnrolled(mentee, resource.program)) {
+        return res.status(403).json({
+          error: 'You are not enrolled in this program'
+        });
+      }
+
+      // Calculate late penalty.
+      const deadline = resource.deadline;
+
+      const isLate = deadline && new Date() > deadline;
+
+      const latePenalty = isLate
+        ? Math.floor(
+            (Date.now() - deadline.getTime()) /
+            (1000 * 60 * 60 * 24)
+          )
+        : 0;
+
+      const score = Math.max(
+        0,
+        (resource.maxScore || 0) - latePenalty
+      );
+
+      const existingCompletion = mentee.completedResources.find(
+        entry => entry.resource.toString() === resource._id.toString()
+      );
+
+      if (existingCompletion) {
+        return res.status(409).json({
+          error: 'Resource has already been completed'
+        });
+      }
+
+      mentee.completedResources.push({
+        resource: resource._id,
+        score,
+        completedOn: new Date()
+      });
+
+      await updateStreak(mentee);
+
+      mentee.totalScore = calculateTotalScore(mentee);
+
+      await mentee.save();
+
+      res.status(200).json({
+        message: 'Resource marked as completed',
+        score,
+        totalScore: mentee.totalScore
+      });
+
+    } catch (err) {
+      console.error('Resource completion error:', err.message);
+
+      res.status(500).json({
+        error: 'Could not complete resource'
+      });
     }
-
-    // Save submission
-    const submission = new QuizSubmission({
-      quiz: quiz._id,
-      resource: resourceId,
-      mentee: mentee._id,
-      answers,
-      score: totalScore,
-    });
-
-    await submission.save();
-
-    // Update mentee's resource progress
-    const completedResource = {
-      resource: resource._id,
-      score: totalScore,
-      completedOn: new Date()
-    };
-
-    const alreadyCompleted = mentee.completedResources.find(
-      (r) => r.resource.toString() === resource._id.toString()
-    );
-
-    if (alreadyCompleted) {
-      alreadyCompleted.score = totalScore;
-      alreadyCompleted.completedOn = new Date();
-    } else {
-      mentee.completedResources.push(completedResource);
-    }
-
-    // Update streak and total score
-    await updateStreak(mentee);
-    // mentee.totalScore += totalScore;
-    await mentee.save();
-
-    res.status(200).json({ message: 'Quiz submitted successfully!', score: totalScore });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
-router.get('/resources/:id/quiz', authenticateMentee, async (req, res) => {
-  try {
-    const resourceId = req.params.id;
-    console.log(resourceId);
-    const resource = await Resource.findById(resourceId).populate('quiz');
-    if (!resource || resource.type !== 'quiz') {
-      return res.status(400).json({ error: 'Invalid resource or quiz not found' });
+
+// --------------------------------------------------
+// Submit Quiz
+// POST /api/m/resources/:id/quiz/submit
+// --------------------------------------------------
+
+router.post(
+  '/resources/:id/quiz/submit',
+  authenticateMentee,
+  async (req, res) => {
+    let submission;
+
+    try {
+      const resourceId = req.params.id;
+      const mentee = req.mentee;
+      const { answers } = req.body;
+
+      if (!isValidId(resourceId)) {
+        return res.status(400).json({
+          error: 'Invalid resource ID'
+        });
+      }
+
+      if (!Array.isArray(answers)) {
+        return res.status(400).json({
+          error: 'Answers must be an array'
+        });
+      }
+
+      const resource = await Resource.findById(resourceId);
+
+      if (!resource || resource.type !== 'quiz') {
+        return res.status(404).json({
+          error: 'Quiz resource not found'
+        });
+      }
+
+      if (!isEnrolled(mentee, resource.program)) {
+        return res.status(403).json({
+          error: 'You are not enrolled in this program'
+        });
+      }
+
+      if (resource.isLocked) {
+        return res.status(403).json({
+          error: 'Quiz is locked'
+        });
+      }
+
+      const quiz = await Quiz.findOne({
+        resource: resource._id
+      });
+
+      if (!quiz) {
+        return res.status(404).json({
+          error: 'Quiz not found'
+        });
+      }
+
+      // Check quiz timing when the dates are configured.
+      const now = new Date();
+
+      if (quiz.startTime && now < quiz.startTime) {
+        return res.status(403).json({
+          error: 'Quiz has not started yet'
+        });
+      }
+
+      if (quiz.endTime && now > quiz.endTime) {
+        return res.status(403).json({
+          error: 'Quiz deadline has passed'
+        });
+      }
+
+      // Prevent duplicate submissions.
+      const existing = await QuizSubmission.findOne({
+        quiz: quiz._id,
+        mentee: mentee._id
+      });
+
+      if (existing) {
+        return res.status(409).json({
+          error: 'Quiz already submitted'
+        });
+      }
+
+      // Validate all submitted answers.
+      const answerMap = new Map();
+
+      for (const answer of answers) {
+        if (
+          !answer.questionId ||
+          !isValidId(answer.questionId) ||
+          !Number.isInteger(answer.selectedOptionIndex) ||
+          answer.selectedOptionIndex < 0
+        ) {
+          return res.status(400).json({
+            error: 'Invalid answer format'
+          });
+        }
+
+        const questionId = answer.questionId.toString();
+
+        if (answerMap.has(questionId)) {
+          return res.status(400).json({
+            error: 'Duplicate answer for a question'
+          });
+        }
+
+        const question = quiz.questions.find(
+          q => q._id.toString() === questionId
+        );
+
+        if (!question) {
+          return res.status(400).json({
+            error: 'Answer contains an invalid question ID'
+          });
+        }
+
+        if (answer.selectedOptionIndex >= question.options.length) {
+          return res.status(400).json({
+            error: 'Selected option does not exist'
+          });
+        }
+
+        answerMap.set(questionId, answer.selectedOptionIndex);
+      }
+
+      // Calculate quiz score.
+      let totalScore = 0;
+
+      for (const question of quiz.questions) {
+        const selectedOption = answerMap.get(
+          question._id.toString()
+        );
+
+        if (
+          selectedOption !== undefined &&
+          selectedOption === question.correctOptionIndex
+        ) {
+          totalScore += question.marks || 1;
+        }
+      }
+
+      // Never exceed the resource's maximum score.
+      totalScore = Math.min(
+        totalScore,
+        resource.maxScore || 0
+      );
+
+      // Save quiz submission.
+      submission = new QuizSubmission({
+        quiz: quiz._id,
+        resource: resource._id,
+        mentee: mentee._id,
+        answers,
+        score: totalScore
+      });
+
+      await submission.save();
+
+      // Update mentee progress.
+      const existingCompletion = mentee.completedResources.find(
+        entry => entry.resource.toString() === resource._id.toString()
+      );
+
+      if (existingCompletion) {
+        existingCompletion.score = totalScore;
+        existingCompletion.completedOn = new Date();
+      } else {
+        mentee.completedResources.push({
+          resource: resource._id,
+          score: totalScore,
+          completedOn: new Date()
+        });
+      }
+
+      await updateStreak(mentee);
+
+      mentee.totalScore = calculateTotalScore(mentee);
+
+      await mentee.save();
+
+      res.status(200).json({
+        message: 'Quiz submitted successfully',
+        score: totalScore,
+        totalScore: mentee.totalScore
+      });
+
+    } catch (err) {
+      // Remove the new submission if updating mentee progress failed.
+      if (submission) {
+        try {
+          await QuizSubmission.findByIdAndDelete(submission._id);
+        } catch (cleanupError) {
+          console.error('Quiz submission cleanup error:', cleanupError.message);
+        }
+      }
+
+      if (err.code === 11000) {
+        return res.status(409).json({
+          error: 'Quiz already submitted'
+        });
+      }
+
+      console.error('Quiz submission error:', err.message);
+
+      res.status(500).json({
+        error: 'Could not submit quiz'
+      });
     }
-
-    console.log(resource);
-    const quiz = await Quiz.findOne({ resource: resourceId });
-    console.log("quiz",quiz);
-    if (!quiz) {
-      return res.status(404).json({ error: 'Quiz not found' });
-    }
-
-    res.json({
-      title: resource.title,
-      description: resource.description,
-      questions: quiz.questions.map((q) => ({
-        id: q._id,
-        questionText: q.questionText,
-        options: q.options,
-      }))
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
-});
+);
 
+
+// --------------------------------------------------
+// Get Quiz Questions
+// GET /api/m/resources/:id/quiz
+// --------------------------------------------------
+
+router.get(
+  '/resources/:id/quiz',
+  authenticateMentee,
+  async (req, res) => {
+    try {
+      const resourceId = req.params.id;
+      const mentee = req.mentee;
+
+      if (!isValidId(resourceId)) {
+        return res.status(400).json({
+          error: 'Invalid resource ID'
+        });
+      }
+
+      const resource = await Resource.findById(resourceId);
+
+      if (!resource || resource.type !== 'quiz') {
+        return res.status(404).json({
+          error: 'Quiz resource not found'
+        });
+      }
+
+      if (!isEnrolled(mentee, resource.program)) {
+        return res.status(403).json({
+          error: 'You are not enrolled in this program'
+        });
+      }
+
+      if (resource.isLocked) {
+        return res.status(403).json({
+          error: 'Quiz is locked'
+        });
+      }
+
+      const quiz = await Quiz.findOne({
+        resource: resource._id
+      });
+
+      if (!quiz) {
+        return res.status(404).json({
+          error: 'Quiz not found'
+        });
+      }
+
+      // Never send correctOptionIndex to the mentee.
+      res.status(200).json({
+        title: resource.title,
+        description: resource.description,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        questions: quiz.questions.map(question => ({
+          id: question._id,
+          questionText: question.questionText,
+          options: question.options
+        }))
+      });
+
+    } catch (err) {
+      console.error('Get quiz error:', err.message);
+
+      res.status(500).json({
+        error: 'Could not load quiz'
+      });
+    }
+  }
+);
+
+
+// --------------------------------------------------
+// Submit Project
 // POST /api/m/resources/:resourceId/project
-router.post('/resources/:resourceId/project', authenticateMentee, async (req, res) => {
-  try {
-    const { githubLink, deployedLink, description } = req.body;
-    const resource = await Resource.findById(req.params.resourceId);
-    const mentee = req.mentee;
+// --------------------------------------------------
 
-    if (!resource) {
-      return res.status(404).json({ error: 'Resource not found' });
+router.post(
+  '/resources/:resourceId/project',
+  authenticateMentee,
+  async (req, res) => {
+    try {
+      const resourceId = req.params.resourceId;
+      const mentee = req.mentee;
+
+      const {
+        githubLink,
+        deployedLink,
+        description
+      } = req.body;
+
+      if (!isValidId(resourceId)) {
+        return res.status(400).json({
+          error: 'Invalid resource ID'
+        });
+      }
+
+      const resource = await Resource.findById(resourceId);
+
+      if (!resource) {
+        return res.status(404).json({
+          error: 'Resource not found'
+        });
+      }
+
+      if (resource.type !== 'project') {
+        return res.status(400).json({
+          error: 'Invalid resource type'
+        });
+      }
+
+      if (resource.isLocked) {
+        return res.status(403).json({
+          error: 'Resource is locked'
+        });
+      }
+
+      if (!isEnrolled(mentee, resource.program)) {
+        return res.status(403).json({
+          error: 'You are not enrolled in this program'
+        });
+      }
+
+      if (
+        !githubLink?.trim() ||
+        !deployedLink?.trim() ||
+        !description?.trim()
+      ) {
+        return res.status(400).json({
+          error: 'GitHub link, deployed link and description are required'
+        });
+      }
+
+      if (
+        !isValidUrl(githubLink.trim()) ||
+        !isValidUrl(deployedLink.trim())
+      ) {
+        return res.status(400).json({
+          error: 'Please provide valid HTTP or HTTPS links'
+        });
+      }
+
+      const existing = mentee.completedResources.find(
+        entry => entry.resource.toString() === resource._id.toString()
+      );
+
+      if (existing?.verified) {
+        return res.status(409).json({
+          error: 'This project has already been verified'
+        });
+      }
+
+      if (existing) {
+        // Allow editing an unverified submission.
+        existing.githubLink = githubLink.trim();
+        existing.deployedLink = deployedLink.trim();
+        existing.description = description.trim();
+        existing.submittedOn = new Date();
+        existing.score = 0;
+        existing.verified = false;
+      } else {
+        mentee.completedResources.push({
+          resource: resource._id,
+          githubLink: githubLink.trim(),
+          deployedLink: deployedLink.trim(),
+          description: description.trim(),
+          score: 0,
+          submittedOn: new Date(),
+          verified: false
+        });
+      }
+
+      await updateStreak(mentee);
+
+      mentee.totalScore = calculateTotalScore(mentee);
+
+      await mentee.save();
+
+      res.status(200).json({
+        message: 'Project submitted successfully'
+      });
+
+    } catch (err) {
+      console.error('Project submission error:', err.message);
+
+      res.status(500).json({
+        error: 'Could not submit project'
+      });
     }
-
-    if (resource.type !== 'project') {
-      return res.status(400).json({ error: 'Invalid resource type' });
-    }
-
-    if (resource.isLocked) {
-      return res.status(403).json({ error: 'Resource is locked' });
-    }
-    // Validate inputs
-    if (!githubLink || !deployedLink || !description) {
-      return res.status(400).json({ error: 'All fields are required' });
-    }
-
-    // if (description.trim().split(/\s+/).length < 300) {
-    //   return res.status(400).json({ error: 'Description must be at least 300 words' });
-    // }
-
-    const deadline = resource.deadline;
-    const isLate = deadline && new Date() > deadline;
-    const latePenalty = isLate ? Math.floor((new Date() - deadline) / (1000 * 60 * 60 * 24)) : 0;
-    const baseScore = resource.maxScore;
-    const score = Math.max(0, baseScore - latePenalty);
-
-    // Create the completion entry
-    const projectCompletion = {
-      resource: resource._id,
-      githubLink,
-      deployedLink,
-      description,
-      score: 0, // Score to be updated by mentor later
-      submittedOn: new Date(),
-    };
-
-    // Check if already completed
-    const existing = mentee.completedResources.find(
-      (c) => c.resource.toString() === resource._id.toString()
-    );
-
-    if (existing) {
-      existing.githubLink = githubLink;
-      existing.deployedLink = deployedLink;
-      existing.description = description;
-      existing.submittedOn = new Date();
-      existing.score = 0;
-    } else {
-      mentee.completedResources.push(projectCompletion);
-    }
-    await mentee.save();
-
-    res.json({ message: 'Project submitted successfully!' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
   }
-});
+);
 
 
-// Helper: Calculate rank (example: based on total score)
+// --------------------------------------------------
+// Helper: Calculate mentee rank
+// --------------------------------------------------
+
 async function calculateRank(menteeId) {
-  const me = await Mentee.findById(menteeId)
+  const mentee = await Mentee.findById(menteeId)
     .select('streak lastActiveDate completedResources.score')
     .lean();
 
-  if (!me) return null;
+  if (!mentee) {
+    return null;
+  }
 
-  const myScore = (me.completedResources || [])
-    .reduce((s, c) => s + (c?.score || 0), 0);
-  const myStreak = me.streak || 0;
-  const myLast   = me.lastActiveDate || new Date(0);
+  const myScore = (mentee.completedResources || []).reduce(
+    (total, entry) => total + (entry.score || 0),
+    0
+  );
 
-  // Count how many are strictly "better" in the same sort order
+  const myStreak = mentee.streak || 0;
+  const myLastActive = mentee.lastActiveDate || new Date(0);
+
+  // Count mentees ranked above this mentee.
   const better = await Mentee.aggregate([
     {
       $project: {
         streak: { $ifNull: ['$streak', 0] },
-        lastActiveDate: 1,
+
+        lastActiveDate: {
+          $ifNull: ['$lastActiveDate', new Date(0)]
+        },
+
         totalScore: {
           $sum: {
             $map: {
               input: { $ifNull: ['$completedResources', []] },
-              as: 'cr',
-              in: { $ifNull: ['$$cr.score', 0] }
+              as: 'entry',
+              in: { $ifNull: ['$$entry.score', 0] }
             }
           }
         }
@@ -343,76 +779,100 @@ async function calculateRank(menteeId) {
       $match: {
         $or: [
           { totalScore: { $gt: myScore } },
-          { totalScore: myScore, streak: { $gt: myStreak } },
-          { totalScore: myScore, streak: myStreak, lastActiveDate: { $gt: myLast } }
+
+          {
+            totalScore: myScore,
+            streak: { $gt: myStreak }
+          },
+
+          {
+            totalScore: myScore,
+            streak: myStreak,
+            lastActiveDate: { $gt: myLastActive }
+          },
+
+          {
+            totalScore: myScore,
+            streak: myStreak,
+            lastActiveDate: myLastActive,
+            _id: { $lt: menteeId }
+          }
         ]
       }
     },
-    { $count: 'cnt' }
+    { $count: 'count' }
   ]);
 
-  return (better[0]?.cnt || 0) + 1;
+  return (better[0]?.count || 0) + 1;
 }
 
-// Helper: Update streak
-async function updateStreak(mentee) {
-  const today = new Date().toDateString();
-  const lastActive = mentee.lastActiveDate?.toDateString();
 
-  if (lastActive !== today) {
-    mentee.streak = lastActive === new Date(Date.now() - 86400000).toDateString() 
-      ? mentee.streak + 1 
-      : 1;
-    mentee.lastActiveDate = new Date();
-  }
-}
+// --------------------------------------------------
+// Public Leaderboard
+// GET /api/m/leaderboard
+// --------------------------------------------------
 
-// --- Public Leaderboard --- //
-// --- Public Leaderboard (same calc as dashboard) --- //
 router.get('/leaderboard', async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
-    const skip  = Math.max(parseInt(req.query.skip  || '0', 10), 0);
+    const requestedLimit = parseInt(req.query.limit || '50', 10);
+    const requestedSkip = parseInt(req.query.skip || '0', 10);
 
-    // Compute totalScore = sum(completedResources.score)
+    const limit = Number.isNaN(requestedLimit)
+      ? 50
+      : Math.min(Math.max(requestedLimit, 1), 200);
+
+    const skip = Number.isNaN(requestedSkip)
+      ? 0
+      : Math.max(requestedSkip, 0);
+
     const rows = await Mentee.aggregate([
       {
         $project: {
           name: 1,
           streak: { $ifNull: ['$streak', 0] },
-          lastActiveDate: 1,
+          lastActiveDate: {
+            $ifNull: ['$lastActiveDate', new Date(0)]
+          },
           totalScore: {
             $sum: {
               $map: {
                 input: { $ifNull: ['$completedResources', []] },
-                as: 'cr',
-                in: { $ifNull: ['$$cr.score', 0] }
+                as: 'entry',
+                in: { $ifNull: ['$$entry.score', 0] }
               }
             }
           }
         }
       },
-      // same ordering everywhere: score desc, streak desc, lastActive desc, _id asc (stable)
-      { $sort: { totalScore: -1, streak: -1, lastActiveDate: -1, _id: 1 } },
+      {
+        $sort: {
+          totalScore: -1,
+          streak: -1,
+          lastActiveDate: -1,
+          _id: 1
+        }
+      },
       { $skip: skip },
       { $limit: limit }
     ]);
 
-    // Attach 1-based rank consistent with global order + skip
-    const leaderboard = rows.map((m, i) => ({
-      rank: skip + i + 1,
-      name: m.name,
-      totalScore: m.totalScore || 0,
-      streak: m.streak || 0
+    const leaderboard = rows.map((mentee, index) => ({
+      rank: skip + index + 1,
+      name: mentee.name,
+      totalScore: mentee.totalScore || 0,
+      streak: mentee.streak || 0
     }));
 
-    res.json(leaderboard);
+    res.status(200).json(leaderboard);
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Leaderboard error:', err.message);
+
+    res.status(500).json({
+      error: 'Could not load leaderboard'
+    });
   }
 });
-
 
 
 module.exports = router;
